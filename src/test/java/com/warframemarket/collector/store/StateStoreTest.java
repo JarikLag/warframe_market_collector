@@ -47,6 +47,31 @@ class StateStoreTest {
     }
 
     @Test
+    void cachedPrimeSetsMoveToTheirOwnGroupWithoutLosingPrices(@TempDir Path dir) throws Exception {
+        // A cache written before the "Prime sets" tab existed: the set is filed under PRIME.
+        Path file = dir.resolve("old-cache.json");
+        StateStore store = new StateStore(file);
+        Instant now = Instant.now();
+        store.save(new PersistedState(
+                PersistedState.CURRENT_SCHEMA_VERSION,
+                now,
+                List.of(new MarketItem("1", "frost_prime_set", "Frost Prime Set",
+                                List.of("set", "prime", "warframe"), Category.PRIME),
+                        new MarketItem("2", "frost_prime_systems", "Frost Prime Systems",
+                                List.of("prime", "component"), Category.PRIME)),
+                Map.of("frost_prime_set", PriceSnapshot.of(45, 60, 5, now))));
+
+        MarketDatabase database = MarketDatabase.from(store.load());
+
+        assertEquals(List.of("frost_prime_set"),
+                database.itemsIn(Category.PRIME_SETS).stream().map(MarketItem::slug).toList());
+        assertEquals(List.of("frost_prime_systems"),
+                database.itemsIn(Category.PRIME).stream().map(MarketItem::slug).toList());
+        assertEquals(45, database.priceOf("frost_prime_set").lowestPlatinum(),
+                "prices must survive the regrouping");
+    }
+
+    @Test
     void missingFileYieldsEmptyState(@TempDir Path dir) {
         PersistedState state = new StateStore(dir.resolve("absent.json")).load();
         assertTrue(state.items().isEmpty());

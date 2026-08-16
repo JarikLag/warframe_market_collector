@@ -26,10 +26,24 @@ public final class MarketDatabase {
 
     public static MarketDatabase from(PersistedState state) {
         MarketDatabase db = new MarketDatabase();
-        db.items = List.copyOf(state.items());
+        db.items = state.items().stream().map(MarketDatabase::reclassify).toList();
         db.catalogFetchedAt = state.catalogFetchedAt();
         db.prices.putAll(state.prices());
         return db;
+    }
+
+    /**
+     * Re-applies the current classification rule to a cached item, so a cache written by
+     * an older version (which had no "Prime sets" group, for example) lands in the right
+     * tab without discarding the prices it already holds. Items whose tags no longer match
+     * any category are left alone; the next catalogue refresh removes them properly.
+     */
+    private static MarketItem reclassify(MarketItem item) {
+        return Category.fromTags(item.tags())
+                .filter(category -> category != item.category())
+                .map(category -> new MarketItem(
+                        item.id(), item.slug(), item.name(), item.tags(), category))
+                .orElse(item);
     }
 
     public PersistedState toPersistedState() {

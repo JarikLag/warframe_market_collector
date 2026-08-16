@@ -16,9 +16,20 @@ second**.
    classify them.
 2. **Filters by tag** — only items tagged `mod` or `prime` are kept (2 134 of 3 837 at the
    time of writing).
-3. **Splits them into two groups** — `Mods` (1 392) and `Prime` (742). A handful of items
-   carry both tags (primed mods); they are counted as mods so every item is requested
-   exactly once.
+3. **Splits them into three groups**, one tab each:
+
+   | Tab | Rule | Items |
+   | --- | --- | --- |
+   | `Mods` | tagged `mod` | 1 392 |
+   | `Prime` | tagged `prime`, but not a set | 582 |
+   | `Prime sets` | tagged `prime` **and** `set` | 160 |
+
+   The **most specific** rule wins, so a complete prime set goes to `Prime sets` rather
+   than `Prime`; ties are broken by tab order, which keeps the two prime augment mods
+   (tagged both `mod` and `prime`) in `Mods`. Every item therefore belongs to exactly one
+   tab and is requested exactly once.
+
+   ![Prime sets tab](docs/prime-sets-tab.png)
 4. **Collects top sell orders** — for each item, `GET /v2/orders/item/{slug}/top` returns
    the best visible sell orders. They are sorted by price and the **lowest** and
    **highest** are stored, along with the sample size and a timestamp.
@@ -82,7 +93,8 @@ Techniques worth calling out:
 
 * **Update all** — re-downloads the catalogue, re-applies the tag filter, then prices
   every item.
-* **Update mods / Update prime** — prices every item in the current tab.
+* **Update mods / Update prime / Update prime sets** — prices every item in the current
+  tab; the button follows whichever tab is open.
 * **Update selected** — prices only the highlighted rows (multi-select works; also
   available from the right-click menu).
 * **Cancel** — stops a running job immediately; everything collected so far is kept.
@@ -165,7 +177,7 @@ src/main/java/com/warframemarket/collector/
 │   ├── ApiDtos.java             wire records for the v2 API
 │   └── ApiException.java
 ├── model/
-│   ├── Category.java            MODS / PRIME, plus the tag-filtering rule
+│   ├── Category.java            MODS / PRIME / PRIME_SETS + the tag-filtering rule
 │   ├── MarketItem.java
 │   └── PriceSnapshot.java       lowest/highest/count/timestamp/error
 ├── service/
@@ -189,6 +201,10 @@ src/main/java/com/warframemarket/collector/
   (five at present), not the dearest order on the whole market. That deliberately keeps
   outlier listings from dominating the figure; the *Sell orders* column shows the sample
   size behind each row.
+* Adding or changing a tab is a one-line change to the `Category` enum: the GUI builds its
+  tabs from `Category.values()`, and cached items are re-classified against the current
+  rule when the cache is loaded — so an existing cache moves items into a newly added tab
+  without losing the prices already collected for them.
 * The client requests the `pc` platform in English. Change the arguments to
   `new WarframeMarketClient(platform, language)` in `Main.java` for other platforms.
 * The app needs a graphical display; on a headless Linux box run it under `xvfb-run` or
